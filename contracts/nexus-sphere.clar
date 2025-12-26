@@ -256,3 +256,43 @@
             
             ;; Record member vote
             (map-set member-votes {proposal-id: proposal-id, voter: tx-sender} support)
+
+            ;; Update proposal vote tallies
+            (map-set governance-proposals proposal-id 
+                (merge proposal 
+                    {
+                        votes-for: (if support 
+                            (+ (get votes-for proposal) voting-power)
+                            (get votes-for proposal)),
+                        votes-against: (if support
+                            (get votes-against proposal)
+                            (+ (get votes-against proposal) voting-power))
+                    }
+                )
+            )
+            
+            (print {event: "vote-cast", proposal-id: proposal-id, voter: tx-sender, support: support, power: voting-power})
+            (ok true)
+        )
+    )
+)
+
+(define-public (execute-approved-proposal (proposal-id uint))
+    (begin
+        (try! (ensure-initialized))
+        (try! (validate-proposal-id proposal-id))
+
+        (let (
+            (proposal (unwrap! (map-get? governance-proposals proposal-id) ERR_PROPOSAL_NOT_FOUND))
+            (available-funds (stx-get-balance current-contract))
+        )
+            (asserts! (not (get executed proposal)) ERR_UNAUTHORIZED)
+            ;; FIXED: Ensure voting period has ENDED (not expired before execution)
+            (asserts! (>= stacks-block-height (get expiry-height proposal)) ERR_PROPOSAL_EXPIRED)
+            ;; Require simple majority
+            (asserts! (> (get votes-for proposal) (get votes-against proposal)) ERR_UNAUTHORIZED)
+            ;; Check minimum quorum participation
+            (let ((total-votes (+ (get votes-for proposal) (get votes-against proposal))))
+                (asserts! (>= (* total-votes u100) (* (var-get total-supply) MINIMUM_QUORUM_PERCENTAGE)) ERR_UNAUTHORIZED)
+            )
+            (asserts! (>= available-funds (get funding-amount proposal)) ERR_INSUFFICIENT_BALANCE)
