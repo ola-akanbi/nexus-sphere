@@ -201,3 +201,89 @@ describe("Nexus Sphere Tests", () => {
       expect(result).toBeOk(Cl.uint(3_000_000)); // 5M - 2M
     });
   });
+
+  describe("Governance - Proposal Submission", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(5_000_000)],
+        address1
+      );
+    });
+
+    it("should allow member to submit valid proposal", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Fund community project"),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(1000), // duration in blocks
+        ],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(1)); // First proposal ID
+    });
+
+    it("should reject proposal from non-member", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Test proposal"),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(1000),
+        ],
+        address3 // Not a member
+      );
+      expect(result).toBeErr(Cl.uint(105)); // ERR_UNAUTHORIZED
+    });
+
+    it("should reject proposal with zero funding", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Test proposal"),
+          Cl.uint(0),
+          Cl.principal(address2),
+          Cl.uint(1000),
+        ],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(113)); // ERR_ZERO_AMOUNT
+    });
+
+    it("should reject proposal with empty description", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii(""),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(1000),
+        ],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(115)); // ERR_INVALID_DESCRIPTION
+    });
+
+    it("should reject proposal with invalid duration (too short)", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Test proposal"),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(100), // Below minimum (144)
+        ],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(112)); // ERR_INVALID_DURATION
+    });
