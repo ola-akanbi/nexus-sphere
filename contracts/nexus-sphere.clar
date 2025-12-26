@@ -39,3 +39,48 @@
 (define-constant ERR_INVALID_TARGET (err u114))
 (define-constant ERR_INVALID_DESCRIPTION (err u115))
 (define-constant ERR_INVALID_PROPOSAL_ID (err u116))
+
+;; Protocol Parameters
+(define-constant MINIMUM_PROPOSAL_DURATION u144)    ;; ~1 day (10min blocks)
+(define-constant MAXIMUM_PROPOSAL_DURATION u20160)  ;; ~14 days
+(define-constant MINIMUM_DEPOSIT_THRESHOLD u1000000) ;; 1 STX in microSTX
+(define-constant DEFAULT_LOCK_PERIOD u1440)         ;; ~10 days in blocks
+(define-constant MINIMUM_QUORUM_PERCENTAGE u10)     ;; 10% of total supply must vote
+
+;; PROTOCOL STATE VARIABLES
+
+(define-data-var total-supply uint u0)
+(define-data-var minimum-deposit uint MINIMUM_DEPOSIT_THRESHOLD)
+(define-data-var lock-period uint DEFAULT_LOCK_PERIOD)
+(define-data-var protocol-initialized bool false)
+(define-data-var proposal-counter uint u0)
+
+;; DATA STRUCTURES
+
+;; Member balance tracking
+(define-map member-balances principal uint)
+
+;; Member deposit information with time-lock mechanics
+(define-map member-deposits
+    principal
+    {
+        deposit-amount: uint,
+        unlock-height: uint,
+        entry-block: uint
+    }
+)
+
+;; Governance proposal structure
+(define-map governance-proposals
+    uint
+    {
+        proposer: principal,
+        description: (string-ascii 256),
+        funding-amount: uint,
+        beneficiary: principal,
+        expiry-height: uint,
+        executed: bool,
+        votes-for: uint,
+        votes-against: uint
+    }
+)
