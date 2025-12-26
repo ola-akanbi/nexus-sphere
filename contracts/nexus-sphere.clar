@@ -84,3 +84,45 @@
         votes-against: uint
     }
 )
+
+;; Vote tracking to prevent double-voting
+(define-map member-votes {proposal-id: uint, voter: principal} bool)
+
+;; PRIVATE UTILITY FUNCTIONS
+
+(define-private (is-protocol-owner)
+    (is-eq tx-sender CONTRACT_OWNER)
+)
+
+(define-private (ensure-initialized)
+    (ok (asserts! (var-get protocol-initialized) ERR_NOT_INITIALIZED))
+)
+
+(define-private (validate-proposal-id (proposal-id uint))
+    (ok (asserts! (and (> proposal-id u0) (<= proposal-id (var-get proposal-counter))) ERR_INVALID_PROPOSAL_ID))
+)
+
+(define-private (get-member-voting-power (member principal))
+    (default-to u0 (map-get? member-balances member))
+)
+
+(define-private (mint-membership-tokens (recipient principal) (amount uint))
+    (let (
+        (current-balance (default-to u0 (map-get? member-balances recipient)))
+    )
+        (map-set member-balances recipient (+ current-balance amount))
+        (var-set total-supply (+ (var-get total-supply) amount))
+        (ok true)
+    )
+)
+
+(define-private (burn-membership-tokens (holder principal) (amount uint))
+    (let (
+        (current-balance (default-to u0 (map-get? member-balances holder)))
+    )
+        (asserts! (>= current-balance amount) ERR_INSUFFICIENT_BALANCE)
+        (map-set member-balances holder (- current-balance amount))
+        (var-set total-supply (- (var-get total-supply) amount))
+        (ok true)
+    )
+)
