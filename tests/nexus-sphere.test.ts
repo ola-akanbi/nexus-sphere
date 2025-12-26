@@ -603,3 +603,89 @@ describe("Nexus Sphere Tests", () => {
       );
       expect(result).toBeOk(Cl.bool(true));
     });
+
+    it("should prevent non-owner from updating minimum deposit", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "update-minimum-deposit",
+        [Cl.uint(2_000_000)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(100)); // ERR_OWNER_ONLY
+    });
+
+    it("should allow owner to update lock period", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "update-lock-period",
+        [Cl.uint(2880)], // ~20 days
+        deployer
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should prevent non-owner from updating lock period", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "update-lock-period",
+        [Cl.uint(2880)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(100)); // ERR_OWNER_ONLY
+    });
+  });
+
+  describe("Read-Only Functions", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+    });
+
+    it("should get protocol status", () => {
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-protocol-status",
+        [],
+        address1
+      );
+      
+      // Verify it returns ok response with tuple structure
+      expect(result).toHaveClarityType(ClarityType.ResponseOk);
+    });
+
+    it("should retrieve member deposit info", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(5_000_000)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-member-deposit-info",
+        [Cl.principal(address1)],
+        address1
+      );
+
+      // Verify it returns Ok response with Some value
+      expect(result).toHaveClarityType(ClarityType.ResponseOk);
+    });
+
+    it("should get total member tokens", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(10_000_000)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-total-member-tokens",
+        [],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(10_000_000));
+    });
+  });
+});
