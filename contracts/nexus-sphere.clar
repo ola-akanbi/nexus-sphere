@@ -126,3 +126,44 @@
         (ok true)
     )
 )
+
+;; PROTOCOL INITIALIZATION
+
+(define-public (initialize-protocol)
+    (begin
+        (asserts! (is-protocol-owner) ERR_OWNER_ONLY)
+        (asserts! (not (var-get protocol-initialized)) ERR_ALREADY_INITIALIZED)
+        (ok (var-set protocol-initialized true))
+    )
+)
+
+;; MEMBER DEPOSIT & WITHDRAWAL FUNCTIONS
+
+(define-public (join-collective (deposit-amount uint))
+    (begin
+        (try! (ensure-initialized))
+        (asserts! (>= deposit-amount (var-get minimum-deposit)) ERR_BELOW_MINIMUM)
+        (asserts! (> deposit-amount u0) ERR_ZERO_AMOUNT)
+
+        ;; Secure STX transfer to protocol
+        (try! (stx-transfer? deposit-amount tx-sender current-contract))
+        
+        ;; Record or update member deposit with time-lock
+        (let (
+            (existing-deposit (default-to {deposit-amount: u0, unlock-height: u0, entry-block: u0} 
+                (map-get? member-deposits tx-sender)))
+        )
+            (map-set member-deposits tx-sender {
+                deposit-amount: (+ (get deposit-amount existing-deposit) deposit-amount),
+                unlock-height: (+ stacks-block-height (var-get lock-period)),
+                entry-block: (if (is-eq (get entry-block existing-deposit) u0) 
+                    stacks-block-height 
+                    (get entry-block existing-deposit))
+            })
+        )
+        
+        ;; Issue membership tokens proportional to deposit
+        (print {event: "member-joined", member: tx-sender, amount: deposit-amount, block: stacks-block-height})
+        (mint-membership-tokens tx-sender deposit-amount)
+    )
+)
