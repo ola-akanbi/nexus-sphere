@@ -215,3 +215,44 @@
         (asserts! (not (is-eq beneficiary current-contract)) ERR_INVALID_TARGET)
         (asserts! (and (>= voting-duration MINIMUM_PROPOSAL_DURATION) 
                       (<= voting-duration MAXIMUM_PROPOSAL_DURATION)) ERR_INVALID_DURATION)
+
+                      (let (
+            (proposer-balance (default-to u0 (map-get? member-balances tx-sender)))
+            (new-proposal-id (+ (var-get proposal-counter) u1))
+        )
+            (asserts! (> proposer-balance u0) ERR_UNAUTHORIZED)
+            
+            ;; Create governance proposal
+            (map-set governance-proposals new-proposal-id {
+                proposer: tx-sender,
+                description: description,
+                funding-amount: funding-amount,
+                beneficiary: beneficiary,
+                expiry-height: (+ stacks-block-height voting-duration),
+                executed: false,
+                votes-for: u0,
+                votes-against: u0
+            })
+            
+            (var-set proposal-counter new-proposal-id)
+            (print {event: "proposal-submitted", proposal-id: new-proposal-id, proposer: tx-sender, amount: funding-amount})
+            (ok new-proposal-id)
+        )
+    )
+)
+
+(define-public (cast-vote (proposal-id uint) (support bool))
+    (begin
+        (try! (ensure-initialized))
+        (try! (validate-proposal-id proposal-id))
+
+        (let (
+            (proposal (unwrap! (map-get? governance-proposals proposal-id) ERR_PROPOSAL_NOT_FOUND))
+            (voting-power (get-member-voting-power tx-sender))
+        )
+            (asserts! (> voting-power u0) ERR_UNAUTHORIZED)
+            (asserts! (< stacks-block-height (get expiry-height proposal)) ERR_PROPOSAL_EXPIRED)
+            (asserts! (is-none (map-get? member-votes {proposal-id: proposal-id, voter: tx-sender})) ERR_ALREADY_VOTED)
+            
+            ;; Record member vote
+            (map-set member-votes {proposal-id: proposal-id, voter: tx-sender} support)
