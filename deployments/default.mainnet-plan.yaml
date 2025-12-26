@@ -1,0 +1,18 @@
+---
+id: 0
+name: Mainnet deployment
+network: mainnet
+stacks-node: "https://api.hiro.so"
+bitcoin-node: "http://blockstack:blockstacksystem@bitcoin.blockstack.com:8332"
+plan:
+  batches:
+    - id: 0
+      transactions:
+        - contract-publish:
+            contract-name: nexus-sphere
+            expected-sender: SP11MXPJA03GJ9FS5H6GWPWH3ZDNR7P1DSAPKP6KD
+            cost: 139780
+            path: contracts/nexus-sphere.clar
+            anchor-block-only: true
+            clarity-version: 4
+      epoch: "3.3"
