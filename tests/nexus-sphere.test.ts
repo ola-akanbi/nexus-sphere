@@ -287,3 +287,85 @@ describe("Nexus Sphere Tests", () => {
       );
       expect(result).toBeErr(Cl.uint(112)); // ERR_INVALID_DURATION
     });
+
+    it("should reject proposal with invalid duration (too long)", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Test proposal"),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(25000), // Above maximum (20160)
+        ],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(112)); // ERR_INVALID_DURATION
+    });
+
+    it("should increment proposal counter correctly", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Proposal 1"),
+          Cl.uint(1_000_000),
+          Cl.principal(address2),
+          Cl.uint(1000),
+        ],
+        address1
+      );
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Proposal 2"),
+          Cl.uint(2_000_000),
+          Cl.principal(address2),
+          Cl.uint(1000),
+        ],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(2));
+    });
+  });
+
+  describe("Governance - Voting", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(5_000_000)],
+        address1
+      );
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(3_000_000)],
+        address2
+      );
+      // Create a proposal
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Test proposal"),
+          Cl.uint(1_000_000),
+          Cl.principal(address3),
+          Cl.uint(1000),
+        ],
+        address1
+      );
+    });
+
+    it("should allow member to vote in favor", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
