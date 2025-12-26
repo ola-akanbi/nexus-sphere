@@ -215,8 +215,8 @@
         (asserts! (not (is-eq beneficiary current-contract)) ERR_INVALID_TARGET)
         (asserts! (and (>= voting-duration MINIMUM_PROPOSAL_DURATION) 
                       (<= voting-duration MAXIMUM_PROPOSAL_DURATION)) ERR_INVALID_DURATION)
-
-                      (let (
+        
+        (let (
             (proposer-balance (default-to u0 (map-get? member-balances tx-sender)))
             (new-proposal-id (+ (var-get proposal-counter) u1))
         )
@@ -256,7 +256,7 @@
             
             ;; Record member vote
             (map-set member-votes {proposal-id: proposal-id, voter: tx-sender} support)
-
+            
             ;; Update proposal vote tallies
             (map-set governance-proposals proposal-id 
                 (merge proposal 
@@ -296,7 +296,7 @@
                 (asserts! (>= (* total-votes u100) (* (var-get total-supply) MINIMUM_QUORUM_PERCENTAGE)) ERR_UNAUTHORIZED)
             )
             (asserts! (>= available-funds (get funding-amount proposal)) ERR_INSUFFICIENT_BALANCE)
-
+            
             ;; Mark proposal as executed BEFORE transfer (reentrancy protection)
             (map-set governance-proposals proposal-id (merge proposal {executed: true}))
             
@@ -335,4 +335,29 @@
 
 (define-read-only (get-member-balance (member principal))
     (ok (default-to u0 (map-get? member-balances member)))
+)
+
+(define-read-only (get-total-member-tokens)
+    (ok (var-get total-supply))
+)
+
+(define-read-only (get-proposal-details (proposal-id uint))
+    (ok (map-get? governance-proposals proposal-id))
+)
+
+(define-read-only (get-member-deposit-info (member principal))
+    (ok (map-get? member-deposits member))
+)
+
+(define-read-only (get-member-vote (proposal-id uint) (voter principal))
+    (ok (map-get? member-votes {proposal-id: proposal-id, voter: voter}))
+)
+
+(define-read-only (get-protocol-status)
+    (ok {
+        initialized: (var-get protocol-initialized),
+        total-proposals: (var-get proposal-counter),
+        total-supply: (var-get total-supply),
+        contract-balance: (stx-get-balance current-contract)
+    })
 )
