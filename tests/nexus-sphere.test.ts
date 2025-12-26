@@ -123,3 +123,81 @@ describe("Nexus Sphere Tests", () => {
       expect(result).toBeOk(Cl.uint(5_000_000));
     });
   });
+
+  describe("Membership - Exiting Collective", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(5_000_000)],
+        address1
+      );
+    });
+
+    it("should prevent withdrawal during lock period", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "exit-collective",
+        [Cl.uint(1_000_000)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(110)); // ERR_LOCKED_PERIOD
+    });
+
+    it("should allow withdrawal after lock period expires", () => {
+      // Mine blocks to pass the lock period
+      simnet.mineEmptyBlocks(DEFAULT_LOCK_PERIOD + 1);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "exit-collective",
+        [Cl.uint(2_000_000)],
+        address1
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject withdrawal exceeding balance", () => {
+      simnet.mineEmptyBlocks(DEFAULT_LOCK_PERIOD + 1);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "exit-collective",
+        [Cl.uint(10_000_000)], // More than deposited
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(103)); // ERR_INSUFFICIENT_BALANCE
+    });
+
+    it("should reject zero amount withdrawal", () => {
+      simnet.mineEmptyBlocks(DEFAULT_LOCK_PERIOD + 1);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "exit-collective",
+        [Cl.uint(0)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(113)); // ERR_ZERO_AMOUNT
+    });
+
+    it("should update balance correctly after withdrawal", () => {
+      simnet.mineEmptyBlocks(DEFAULT_LOCK_PERIOD + 1);
+
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "exit-collective",
+        [Cl.uint(2_000_000)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-member-balance",
+        [Cl.principal(address1)],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(3_000_000)); // 5M - 2M
+    });
+  });
