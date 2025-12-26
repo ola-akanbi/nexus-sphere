@@ -443,3 +443,88 @@ describe("Nexus Sphere Tests", () => {
         [Cl.uint(1)],
         address1
       );
+
+      expect(result).toBeOk(
+        Cl.some(
+          Cl.tuple({
+            proposer: Cl.principal(address1),
+            description: Cl.stringAscii("Test proposal"),
+            "funding-amount": Cl.uint(1_000_000),
+            beneficiary: Cl.principal(address3),
+            "expiry-height": Cl.uint(simnet.blockHeight + 1000 - 1), // Adjusted for timing
+            executed: Cl.bool(false),
+            "votes-for": Cl.uint(5_000_000), // address1's balance
+            "votes-against": Cl.uint(0),
+          })
+        )
+      );
+    });
+  });
+
+  describe("Governance - Proposal Execution", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+      // Create members with significant balances
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(50_000_000)], // 50 STX
+        address1
+      );
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(30_000_000)], // 30 STX
+        address2
+      );
+      // Create proposal
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "submit-proposal",
+        [
+          Cl.stringAscii("Fund development"),
+          Cl.uint(10_000_000),
+          Cl.principal(address3),
+          Cl.uint(500),
+        ],
+        address1
+      );
+    });
+
+    it("should execute proposal with majority votes after expiry", () => {
+      // Vote in favor with majority
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+
+      // Mine blocks past voting period
+      simnet.mineEmptyBlocks(501);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject execution before voting period ends", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(107)); // ERR_PROPOSAL_EXPIRED
+    });
