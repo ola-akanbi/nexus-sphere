@@ -296,3 +296,43 @@
                 (asserts! (>= (* total-votes u100) (* (var-get total-supply) MINIMUM_QUORUM_PERCENTAGE)) ERR_UNAUTHORIZED)
             )
             (asserts! (>= available-funds (get funding-amount proposal)) ERR_INSUFFICIENT_BALANCE)
+
+            ;; Mark proposal as executed BEFORE transfer (reentrancy protection)
+            (map-set governance-proposals proposal-id (merge proposal {executed: true}))
+            
+            ;; Execute approved funding transfer
+            (try! (as-contract? ((with-all-assets-unsafe)) (try! (stx-transfer? (get funding-amount proposal) tx-sender (get beneficiary proposal)))))
+            
+            (print {event: "proposal-executed", proposal-id: proposal-id, amount: (get funding-amount proposal), beneficiary: (get beneficiary proposal)})
+            (ok true)
+        )
+    )
+)
+
+;; ADMIN FUNCTIONS
+
+(define-public (update-minimum-deposit (new-minimum uint))
+    (begin
+        (asserts! (is-protocol-owner) ERR_OWNER_ONLY)
+        (asserts! (> new-minimum u0) ERR_ZERO_AMOUNT)
+        (var-set minimum-deposit new-minimum)
+        (print {event: "minimum-deposit-updated", new-value: new-minimum})
+        (ok true)
+    )
+)
+
+(define-public (update-lock-period (new-period uint))
+    (begin
+        (asserts! (is-protocol-owner) ERR_OWNER_ONLY)
+        (asserts! (> new-period u0) ERR_ZERO_AMOUNT)
+        (var-set lock-period new-period)
+        (print {event: "lock-period-updated", new-value: new-period})
+        (ok true)
+    )
+)
+
+;; READ-ONLY QUERY FUNCTIONS
+
+(define-read-only (get-member-balance (member principal))
+    (ok (default-to u0 (map-get? member-balances member)))
+)
