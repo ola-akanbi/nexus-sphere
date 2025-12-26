@@ -167,3 +167,51 @@
         (mint-membership-tokens tx-sender deposit-amount)
     )
 )
+
+(define-public (exit-collective (withdrawal-amount uint))
+    (begin
+        (try! (ensure-initialized))
+        (asserts! (> withdrawal-amount u0) ERR_ZERO_AMOUNT)
+
+        (let (
+            (deposit-info (unwrap! (map-get? member-deposits tx-sender) ERR_UNAUTHORIZED))
+            (member-balance (default-to u0 (map-get? member-balances tx-sender)))
+        )
+            (asserts! (>= stacks-block-height (get unlock-height deposit-info)) ERR_LOCKED_PERIOD)
+            (asserts! (>= member-balance withdrawal-amount) ERR_INSUFFICIENT_BALANCE)
+            (asserts! (>= (get deposit-amount deposit-info) withdrawal-amount) ERR_INSUFFICIENT_BALANCE)
+            
+            ;; Update state BEFORE external call (reentrancy protection)
+            ;; Burn membership tokens
+            (try! (burn-membership-tokens tx-sender withdrawal-amount))
+            
+            ;; Update deposit record
+            (map-set member-deposits tx-sender 
+                (merge deposit-info {deposit-amount: (- (get deposit-amount deposit-info) withdrawal-amount)}))
+            
+            ;; Transfer STX back to member
+            (let ((member tx-sender))
+                (try! (as-contract? ((with-all-assets-unsafe)) (try! (stx-transfer? withdrawal-amount tx-sender member)))))
+            (print {event: "member-exited", member: tx-sender, amount: withdrawal-amount, block: stacks-block-height})
+            (ok true)
+        )
+    )
+)
+
+;; GOVERNANCE PROPOSAL SYSTEM
+
+(define-public (submit-proposal
+    (description (string-ascii 256))
+    (funding-amount uint)
+    (beneficiary principal)
+    (voting-duration uint)
+)
+    (begin
+        (try! (ensure-initialized))
+
+        ;; Comprehensive input validation
+        (asserts! (> (len description) u0) ERR_INVALID_DESCRIPTION)
+        (asserts! (> funding-amount u0) ERR_ZERO_AMOUNT)
+        (asserts! (not (is-eq beneficiary current-contract)) ERR_INVALID_TARGET)
+        (asserts! (and (>= voting-duration MINIMUM_PROPOSAL_DURATION) 
+                      (<= voting-duration MAXIMUM_PROPOSAL_DURATION)) ERR_INVALID_DURATION)
