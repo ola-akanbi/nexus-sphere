@@ -528,3 +528,78 @@ describe("Nexus Sphere Tests", () => {
       );
       expect(result).toBeErr(Cl.uint(107)); // ERR_PROPOSAL_EXPIRED
     });
+
+    it("should reject execution without majority", () => {
+      // Vote against
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(false)],
+        address1
+      );
+
+      simnet.mineEmptyBlocks(501);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(105)); // ERR_UNAUTHORIZED
+    });
+
+    it("should reject execution if quorum not met", () => {
+      // No votes cast, quorum not met
+      simnet.mineEmptyBlocks(501);
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(105)); // ERR_UNAUTHORIZED
+    });
+
+    it("should prevent double execution", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+
+      simnet.mineEmptyBlocks(501);
+
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "execute-approved-proposal",
+        [Cl.uint(1)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(105)); // ERR_UNAUTHORIZED
+    });
+  });
+
+  describe("Admin Functions", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+    });
+
+    it("should allow owner to update minimum deposit", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "update-minimum-deposit",
+        [Cl.uint(2_000_000)],
+        deployer
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
