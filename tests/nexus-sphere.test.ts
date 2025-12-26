@@ -45,3 +45,81 @@ describe("Nexus Sphere Tests", () => {
       expect(result).toBeErr(Cl.uint(102)); // ERR_ALREADY_INITIALIZED
     });
   });
+
+  describe("Membership - Joining Collective", () => {
+    beforeEach(() => {
+      simnet.callPublicFn(CONTRACT_NAME, "initialize-protocol", [], deployer);
+    });
+
+    it("should allow member to join with valid deposit", () => {
+      const depositAmount = 5_000_000; // 5 STX
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(depositAmount)],
+        address1
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject deposit below minimum threshold", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(500_000)], // 0.5 STX, below minimum
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(109)); // ERR_BELOW_MINIMUM
+    });
+
+    it("should reject zero amount deposit", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(0)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(109)); // ERR_BELOW_MINIMUM (checked before ERR_ZERO_AMOUNT)
+    });
+
+    it("should track member balance correctly", () => {
+      const depositAmount = 3_000_000;
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(depositAmount)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-member-balance",
+        [Cl.principal(address1)],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(depositAmount));
+    });
+
+    it("should allow multiple deposits from same member", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(2_000_000)],
+        address1
+      );
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "join-collective",
+        [Cl.uint(3_000_000)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-member-balance",
+        [Cl.principal(address1)],
+        address1
+      );
+      expect(result).toBeOk(Cl.uint(5_000_000));
+    });
+  });
