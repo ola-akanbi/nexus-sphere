@@ -369,3 +369,77 @@ describe("Nexus Sphere Tests", () => {
       );
       expect(result).toBeOk(Cl.bool(true));
     });
+
+    it("should allow member to vote against", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(false)],
+        address2
+      );
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should prevent non-member from voting", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address3 // Not a member
+      );
+      expect(result).toBeErr(Cl.uint(105)); // ERR_UNAUTHORIZED
+    });
+
+    it("should prevent double voting", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(false)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(108)); // ERR_ALREADY_VOTED
+    });
+
+    it("should reject vote for non-existent proposal", () => {
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(999), Cl.bool(true)],
+        address1
+      );
+      expect(result).toBeErr(Cl.uint(116)); // ERR_INVALID_PROPOSAL_ID
+    });
+
+    it("should reject vote after proposal expires", () => {
+      simnet.mineEmptyBlocks(1001); // Past the voting duration
+
+      const { result } = simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address2
+      );
+      expect(result).toBeErr(Cl.uint(107)); // ERR_PROPOSAL_EXPIRED
+    });
+
+    it("should weight votes by member balance", () => {
+      simnet.callPublicFn(
+        CONTRACT_NAME,
+        "cast-vote",
+        [Cl.uint(1), Cl.bool(true)],
+        address1
+      );
+
+      const { result } = simnet.callReadOnlyFn(
+        CONTRACT_NAME,
+        "get-proposal-details",
+        [Cl.uint(1)],
+        address1
+      );
